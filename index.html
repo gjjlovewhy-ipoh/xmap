@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>怡保地图 - 三图层 + 地名多语言翻译</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:"Microsoft Yahei",sans-serif;}
+        #map{width:100%;height:100vh;}
+        .control-box{
+            position:fixed;top:15px;left:15px;z-index:999;
+            background:#fff;padding:15px;border-radius:8px;
+            box-shadow:0 2px 12px rgba(0,0,0,0.15);
+        }
+        .control-box h4{margin-bottom:10px;color:#1976D2;}
+        .item{margin:8px 0;}
+        select,button{
+            padding:6px 10px;border:1px solid #ccc;border-radius:4px;
+            outline:none;
+        }
+        button{background:#1976D2;color:#fff;border:none;cursor:pointer;}
+        button:hover{background:#1565C0;}
+        .trans-box{
+            position:fixed;bottom:20px;left:15px;z-index:999;
+            background:#fff;padding:12px;border-radius:8px;
+            box-shadow:0 2px 12px rgba(0,0,0,0.15);
+            min-width:280px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="control-box">
+        <h4>🗺 地图图层切换</h4>
+        <div class="item">
+            <select id="layerSel">
+                <option value="xiaogu">小谷地图（默认）</option>
+                <option value="arcgis">ArcGIS高清卫星</option>
+                <option value="amap">高德地图</option>
+            </select>
+        </div>
+        <h4 style="margin-top:15px;">🌐 地名翻译</h4>
+        <div class="item">
+            <select id="langSel">
+                <option value="zh">简体中文</option>
+                <option value="en">英文</option>
+                <option value="ja">日文</option>
+                <option value="ko">韩文</option>
+                <option value="fr">法语</option>
+            </select>
+        </div>
+        <div class="item">
+            <button id="transBtn">翻译当前点位地名</button>
+        </div>
+    </div>
+
+    <div class="trans-box" id="transBox" style="display:none;">
+        <div>原地名：<span id="originName"></span></div>
+        <div style="margin-top:5px;">翻译结果：<span id="transName"></span></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.staticfile.net/translate.js/3.17.0/translate.js"></script>
+
+    <script>
+        // 翻译功能
+        translate.language.setLocal('chinese');
+        translate.service.use('client.edge');
+        translate.execute();
+
+        async function translateText(text, toLang){
+            if(!text) return "无地名";
+            const langMap = {
+                zh: "zh-CN",
+                en: "en",
+                ja: "ja",
+                ko: "ko",
+                fr: "fr"
+            };
+            let target = langMap[toLang] || "en";
+            let res = await translate.translate(text, "zh-CN", target);
+            return res || "翻译失败";
+        }
+
+        // 怡保默认坐标
+        let map, baseLayer;
+        const IPOH_LAT = 4.5975;
+        const IPOH_LNG = 101.0901;
+
+        const layerList = {
+            // 你原来自定义地址不变，只改名：小谷地图
+            xiaogu: L.tileLayer('https://gwxc.shipxy.com/tile.g?z={z}&x={x}&y={y}', {
+                attribution: '&copy; 小谷地图',
+                maxZoom: 18,
+                tileSize: 256
+            }),
+
+            // ArcGIS 高清卫星
+            arcgis: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; Esri World Imagery',
+                maxZoom: 18
+            }),
+
+            // 高德地图
+            amap: L.tileLayer('https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', {
+                attribution: '&copy; 高德地图'
+            })
+        };
+
+        // 初始化怡保地图 默认小谷地图
+        map = L.map('map').setView([IPOH_LAT, IPOH_LNG], 12);
+        baseLayer = layerList.xiaogu.addTo(map);
+
+        // 图层切换
+        document.getElementById('layerSel').addEventListener('change', function(){
+            let val = this.value;
+            map.removeLayer(baseLayer);
+            baseLayer = layerList[val].addTo(map);
+        });
+
+        // 点击标记+翻译
+        let clickMarker;
+        const mockPlaceName = "马来西亚霹雳州怡保市旧街场";
+
+        map.on('click', async function(e){
+            let lat = e.latlng.lat.toFixed(4);
+            let lng = e.latlng.lng.toFixed(4);
+            if(clickMarker) map.removeLayer(clickMarker);
+            clickMarker = L.marker([lat, lng]).addTo(map)
+                .bindPopup(`经纬度：${lat}, ${lng}<br>地名：${mockPlaceName}`)
+                .openPopup();
+        });
+
+        document.getElementById('transBtn').addEventListener('click', async function(){
+            let lang = document.getElementById('langSel').value;
+            let origin = mockPlaceName;
+            let transRes = await translateText(origin, lang);
+            document.getElementById('originName').innerText = origin;
+            document.getElementById('transName').innerText = transRes;
+            document.getElementById('transBox').style.display = 'block';
+        });
+    </script>
+</body>
+</html>
